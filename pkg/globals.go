@@ -15,13 +15,14 @@ type Trap struct {
 		References      string `json:"References"`
 		Description     string `json:"Description"`
 	} `json:"BasicInfo"`
-	Behaviour []struct {
-		Request struct {
-			URL     string                 `json:"Url"`
-			Method  string                 `json:"Method"`
-			Headers map[string]interface{} `json:"Headers"`
-			Params  map[string]interface{} `json:"Params"`
-		} `json:"Request"`
+       Behaviour []struct {
+	       Request struct {
+		       URL            string                 `json:"Url"`
+		       Method         string                 `json:"Method"`
+		       Headers        map[string]interface{} `json:"Headers"`
+		       Params         map[string]interface{} `json:"Params"`
+		       HeaderContains map[string][]string    `json:"HeaderContains"`
+	       } `json:"Request"`
 		Response struct {
 			Statuscode int                    `json:"StatusCode"`
 			Body       string                 `json:"Body"`

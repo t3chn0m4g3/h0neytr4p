@@ -242,139 +242,156 @@ func allHandler(trapConfig []Trap, catchall string) http.Handler {
 			}
 		}
 		// Process / match request URL based on traptConfig (signatures)
-		for _, trap := range trapConfig {
-			for _, behaviour := range trap.Behaviour {
-				params := make(map[string]string)
-				if (behaviour.Request.Method == r.Method) && (match(behaviour.Request.URL, r.URL.Path)) {
-					if r.Method == "GET" {
-						if len(strings.Split(r.RequestURI, "?")) > 1 {
-							for _, k := range strings.Split(strings.Split(r.RequestURI, "?")[1], "&") {
-								split := strings.Split(k, "=")
-								if len(split) == 2 {
-									params[split[0]] = split[1]
-								} else {
-									params[split[0]] = ""
-								}
-							}
-						}
-					} else if r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE" {
-						if len(strings.Split(r.RequestURI, "?")) > 1 {
-							for _, k := range strings.Split(strings.Split(r.RequestURI, "?")[1], "&") {
-								split := strings.Split(k, "=")
-								if len(split) == 2 {
-									params[split[0]] = split[1]
-								} else {
-									params[split[0]] = ""
-								}
-							}
-						}
-						if strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") {
-							if err := r.ParseMultipartForm(0); err != nil {
-								fmt.Println("Error with Params")
-								fmt.Println(err.Error())
-							}
-							for key, values := range r.PostForm {
-								params[key] = strings.Join(values, "|")
-							}
-						} else if r.Header.Get("Content-Type") == "text/plain" {
-							bodyBytes, err := ioutil.ReadAll(r.Body)
-							if err != nil {
-								log.Fatal(err)
-							}
-							bodyString := string(bodyBytes)
-							for _, k := range strings.Split(bodyString, "&") {
-								split := strings.Split(k, "=")
-								if len(split) == 2 {
-									params[split[0]] = split[1]
-								} else {
-									params[split[0]] = ""
-								}
-							}
-						} else if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
-							if err := r.ParseForm(); err != nil {
-								fmt.Println("Error with Params")
-							}
-							for key, values := range r.PostForm {
-								params[key] = strings.Join(values, "|")
-							}
-						}
-					}
-					if (CheckHeaders(convertMap(behaviour.Request.Headers), r.Header)) && (CheckParams(convertMap(behaviour.Request.Params), params)) {
-						trapFlag = "true"
-						details := map[string]string{
-							"timestamp":          time.Now().Format(time.RFC3339),
-							"src_ip":             GetIP(r),
-							"dest_port":          GetPort(r),
-							"request_method":     r.Method,
-							"protocol":           GetProtocol(r),
-							"hostname":           GetHostname(r),
-							"request_uri":        r.RequestURI,
-							"user-agent_browser": ua.UserAgent.Family,
-							"user-agent_os":      ua.Os.Family,
-							"trapped":            "true",
-							"trapped_for":        trap.Basicinfo.Name,
-							"user-agent":         r.Header.Get("User-Agent"),
-						}
-						if payloadParameter != "" {
-							details["payload_parameter"] = payloadParameter
-						}
-						if payloadHashMD5 != "" {
-							details["payload_hash_md5"] = payloadHashMD5
-							details["payload_filename"] = payloadFilename
-							details["payload_mime_type"] = payloadMimeType
-						}
-						if payloadData != "" {
-							details["payload"] = payloadData
-						}
-						for key, value := range GetFlatHeaders(r) {
-							details[key] = value
-						}
-						for key, value := range GetFlatCookies(r) {
-							details[key] = value
-						}
-						if ua.Device.Brand != "" {
-							details["user-agent_device_brand"] = ua.Device.Brand
-						}
-						if ua.Device.Model != "" {
-							details["user-agent_device_model"] = ua.Device.Model
-						}
-						if ua.UserAgent.Major != "" || ua.UserAgent.Minor != "" {
-							details["user-agent_browser_version"] = fmt.Sprintf("%s.%s", ua.UserAgent.Major, ua.UserAgent.Minor)
-						}
-						if ua.Os.Major != "" || ua.Os.Minor != "" {
-							details["user-agent_os_version"] = fmt.Sprintf("%s.%s", ua.Os.Major, ua.Os.Minor)
-						}
-						if trap.Basicinfo.RiskRating != "" {
-							details["trapped_risk_rating"] = trap.Basicinfo.RiskRating
-						}
-						if trap.Basicinfo.References != "" {
-							details["trapped_references"] = trap.Basicinfo.References
-						}
-						LogEntry(details)
-						// Writing Response according to trap
-						responseHeaders := convertMap(behaviour.Response.Headers)
-						for key, value := range responseHeaders {
-							w.Header().Set(key, value)
-						}
-						w.WriteHeader(behaviour.Response.Statuscode)
-						if behaviour.Response.Type == "file" {
-							content, err := ioutil.ReadFile(behaviour.Response.Body)
-							if err != nil {
-								fmt.Println("[RESPONSE-ERROR]: Unable to read file")
-							} else {
-								_, err = w.Write(content)
-								if err != nil {
-									fmt.Println("Unable to write content")
-								}
-							}
-						} else {
-							w.Write([]byte(behaviour.Response.Body))
-						}
-						// End Writing Response
-					}
-				}
-			}
-		}
+			   for _, trap := range trapConfig {
+				   for _, behaviour := range trap.Behaviour {
+					   params := make(map[string]string)
+					   if (behaviour.Request.Method == r.Method) && (match(behaviour.Request.URL, r.URL.Path)) {
+						   if r.Method == "GET" {
+							   if len(strings.Split(r.RequestURI, "?")) > 1 {
+								   for _, k := range strings.Split(strings.Split(r.RequestURI, "?")[1], "&") {
+									   split := strings.Split(k, "=")
+									   if len(split) == 2 {
+										   params[split[0]] = split[1]
+									   } else {
+										   params[split[0]] = ""
+									   }
+								   }
+							   }
+						   } else if r.Method == "POST" || r.Method == "PUT" || r.Method == "DELETE" {
+							   if len(strings.Split(r.RequestURI, "?")) > 1 {
+								   for _, k := range strings.Split(strings.Split(r.RequestURI, "?")[1], "&") {
+									   split := strings.Split(k, "=")
+									   if len(split) == 2 {
+										   params[split[0]] = split[1]
+									   } else {
+										   params[split[0]] = ""
+									   }
+								   }
+							   }
+							   if strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") {
+								   if err := r.ParseMultipartForm(0); err != nil {
+									   fmt.Println("Error with Params")
+									   fmt.Println(err.Error())
+								   }
+								   for key, values := range r.PostForm {
+									   params[key] = strings.Join(values, "|")
+								   }
+							   } else if r.Header.Get("Content-Type") == "text/plain" {
+								   bodyBytes, err := ioutil.ReadAll(r.Body)
+								   if err != nil {
+									   log.Fatal(err)
+								   }
+								   bodyString := string(bodyBytes)
+								   for _, k := range strings.Split(bodyString, "&") {
+									   split := strings.Split(k, "=")
+									   if len(split) == 2 {
+										   params[split[0]] = split[1]
+									   } else {
+										   params[split[0]] = ""
+									   }
+								   }
+							   } else if strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+								   if err := r.ParseForm(); err != nil {
+									   fmt.Println("Error with Params")
+								   }
+								   for key, values := range r.PostForm {
+									   params[key] = strings.Join(values, "|")
+								   }
+							   }
+						   }
+						   // HeaderContains logic
+						   headerContainsMatch := false
+						   if behaviour.Request.HeaderContains != nil {
+							   for headerKey, substrings := range behaviour.Request.HeaderContains {
+								   reqHeaderVal := r.Header.Get(headerKey)
+								   for _, substr := range substrings {
+									   if strings.Contains(reqHeaderVal, substr) {
+										   headerContainsMatch = true
+										   break
+									   }
+								   }
+								   if headerContainsMatch {
+									   break
+								   }
+							   }
+						   }
+						   if ((CheckHeaders(convertMap(behaviour.Request.Headers), r.Header)) && (CheckParams(convertMap(behaviour.Request.Params), params))) || headerContainsMatch {
+							   trapFlag = "true"
+							   details := map[string]string{
+								   "timestamp":          time.Now().Format(time.RFC3339),
+								   "src_ip":             GetIP(r),
+								   "dest_port":          GetPort(r),
+								   "request_method":     r.Method,
+								   "protocol":           GetProtocol(r),
+								   "hostname":           GetHostname(r),
+								   "request_uri":        r.RequestURI,
+								   "user-agent_browser": ua.UserAgent.Family,
+								   "user-agent_os":      ua.Os.Family,
+								   "trapped":            "true",
+								   "trapped_for":        trap.Basicinfo.Name,
+								   "user-agent":         r.Header.Get("User-Agent"),
+							   }
+							   if payloadParameter != "" {
+								   details["payload_parameter"] = payloadParameter
+							   }
+							   if payloadHashMD5 != "" {
+								   details["payload_hash_md5"] = payloadHashMD5
+								   details["payload_filename"] = payloadFilename
+								   details["payload_mime_type"] = payloadMimeType
+							   }
+							   if payloadData != "" {
+								   details["payload"] = payloadData
+							   }
+							   for key, value := range GetFlatHeaders(r) {
+								   details[key] = value
+							   }
+							   for key, value := range GetFlatCookies(r) {
+								   details[key] = value
+							   }
+							   if ua.Device.Brand != "" {
+								   details["user-agent_device_brand"] = ua.Device.Brand
+							   }
+							   if ua.Device.Model != "" {
+								   details["user-agent_device_model"] = ua.Device.Model
+							   }
+							   if ua.UserAgent.Major != "" || ua.UserAgent.Minor != "" {
+								   details["user-agent_browser_version"] = fmt.Sprintf("%s.%s", ua.UserAgent.Major, ua.UserAgent.Minor)
+							   }
+							   if ua.Os.Major != "" || ua.Os.Minor != "" {
+								   details["user-agent_os_version"] = fmt.Sprintf("%s.%s", ua.Os.Major, ua.Os.Minor)
+							   }
+							   if trap.Basicinfo.RiskRating != "" {
+								   details["trapped_risk_rating"] = trap.Basicinfo.RiskRating
+							   }
+							   if trap.Basicinfo.References != "" {
+								   details["trapped_references"] = trap.Basicinfo.References
+							   }
+							   LogEntry(details)
+							   // Writing Response according to trap
+							   responseHeaders := convertMap(behaviour.Response.Headers)
+							   for key, value := range responseHeaders {
+								   w.Header().Set(key, value)
+							   }
+							   w.WriteHeader(behaviour.Response.Statuscode)
+							   if behaviour.Response.Type == "file" {
+								   content, err := ioutil.ReadFile(behaviour.Response.Body)
+								   if err != nil {
+									   fmt.Println("[RESPONSE-ERROR]: Unable to read file")
+								   } else {
+									   _, err = w.Write(content)
+									   if err != nil {
+										   fmt.Println("Unable to write content")
+									   }
+								   }
+							   } else {
+								   w.Write([]byte(behaviour.Response.Body))
+							   }
+							   // End Writing Response
+							   return
+						   }
+					   }
+				   }
+			   }
 		if trapFlag != "true" {
 			details := map[string]string{
 				"timestamp":          time.Now().Format(time.RFC3339),
