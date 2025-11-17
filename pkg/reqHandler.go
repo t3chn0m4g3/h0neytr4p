@@ -93,7 +93,11 @@ func GetHostname(r *http.Request) string {
 func GetIP(r *http.Request) string {
 	forwarded := r.Header.Get("X-FORWARDED-FOR")
 	if forwarded != "" {
-		return forwarded
+		// X-Forwarded-For can contain multiple IPs separated by commas
+		parts := strings.Split(forwarded, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0]) // Return the client IP only
+		}
 	}
 	ip := r.RemoteAddr
 	if colonIndex := strings.LastIndex(ip, ":"); colonIndex != -1 {
