@@ -3,6 +3,7 @@ package h0neytr4p
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -62,9 +63,28 @@ func match(first string, second string) bool {
 	return glob.Glob(first, second)
 }
 
+func getRequestHeader(ruleHeader string, requestHeaders http.Header) string {
+	if strings.EqualFold(ruleHeader, "Authorization-Basic-Decoded") {
+		return decodeBasicAuthorization(requestHeaders.Get("Authorization"))
+	}
+	return requestHeaders.Get(ruleHeader)
+}
+
+func decodeBasicAuthorization(headerValue string) string {
+	scheme, value, found := strings.Cut(headerValue, " ")
+	if !found || !strings.EqualFold(scheme, "Basic") {
+		return ""
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))
+	if err != nil {
+		return ""
+	}
+	return string(decoded)
+}
+
 func CheckHeaders(ruleHeaders map[string]string, requestHeaders http.Header) bool {
 	for k, v := range ruleHeaders {
-		if !match(v, requestHeaders.Get(k)) {
+		if !match(v, getRequestHeader(k, requestHeaders)) {
 			return false
 		}
 	}
@@ -390,7 +410,7 @@ func hasMatchingPath(trapConfig []Trap, path string) bool {
 
 func headerContainsMatch(ruleHeaders map[string][]string, requestHeaders http.Header) bool {
 	for headerKey, substrings := range ruleHeaders {
-		reqHeaderVal := requestHeaders.Get(headerKey)
+		reqHeaderVal := getRequestHeader(headerKey, requestHeaders)
 		for _, substr := range substrings {
 			if strings.Contains(reqHeaderVal, substr) {
 				return true

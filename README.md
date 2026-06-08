@@ -219,6 +219,7 @@ Notes:
 
 - `Request.Url`, `Request.Proto`, `Request.Headers`, and `Request.Params` support glob-style `*` matching.
 - `Request.Proto` is optional. Leave it empty or omit it to match any HTTP version, or use values such as `HTTP/2*` for HTTP/2-specific traps.
+- `Request.Headers` also supports the virtual key `Authorization-Basic-Decoded` for matching decoded HTTP Basic auth content without writing decoded credentials to the log.
 - Use `{}` for empty headers or parameters.
 - `Response.Type` can be `file` or `string`.
 - For `file` responses, `Response.Body` is a path relative to the working directory.
@@ -305,6 +306,28 @@ The script requires a `curl` build with HTTP/2 support. It verifies that:
 - The negotiated protocol is HTTP/2.
 - The response body matches the Apache-style default page.
 - The JSON log contains a matching `trapped=true` entry for `CVE-2026-23918` with `request_proto` starting with `HTTP/2`.
+
+### Decoded Basic Auth Smoke Test
+
+`tests/test-cve-2026-41940-basic-decoded.sh` verifies the `Authorization-Basic-Decoded` matcher used by the cPanel/WHM `CVE-2026-41940` trap:
+
+```text
+POST /login/?login_only=1&h0neytr4p_test=<run-id>
+Authorization: Basic <synthetic-base64-marker>
+Cookie: whostmgrsession=<run-id>
+```
+
+With the default `docker-compose.yml` port mapping, run it against the WHM-style host port that forwards to the container's HTTPS listener:
+
+```bash
+tests/test-cve-2026-41940-basic-decoded.sh
+```
+
+The script verifies that:
+
+- A synthetic decoded Basic Auth marker triggers `CVE-2026-41940`.
+- A normal `admin:admin` Basic Auth request with the same path and cookie shape does not trigger the trap.
+- The decoded marker is not written as plaintext into the JSON log entry.
 
 ## Development Checks
 

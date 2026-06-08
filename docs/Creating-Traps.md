@@ -20,7 +20,7 @@ Each trap must contain the following details in the JSON format. Most of the ele
 | 11.  |  Behaviour.Request.Url |  URL Path.  You can define static or wildcards. [See reference below for how-to] | Required  | String  |
 | 12.  |  Behaviour.Request.Method | Method; Supported Values: GET, POST, DELETE, PUT, OPTIONS  |  Required |  String |
 | 13.  | Behaviour.Request.Proto | Optional HTTP request protocol matcher, for example `HTTP/2*`. Omit it or use an empty string to match any HTTP version. | Optional | String |
-| 14.  | Behaviour.Request.Headers  | Request Headers. You can define static or wildcards. [See reference below for how-to]; Use an empty `{}` for empty headers | Required  |  JSON Object |
+| 14.  | Behaviour.Request.Headers  | Request Headers. You can define static or wildcard values. [See reference below for how-to]; Use an empty `{}` for empty headers | Required  |  JSON Object |
 | 15.  |  Behaviour.Request.Params |  It's a key value pair json object. You can define the parameters irrespective of GET/POST and Content-Types. Backend handles it automatically. Use an empty `{}` for empty parameters. | Required  | JSON Object  |
 | 16.  |  Behaviour.Response |  It's a json object containing the required response behaviour | Required  | JSON Object  |
 | 17.  |  Behaviour.Response.StatusCode | Status code for response;  |  Required | String  |
@@ -64,18 +64,16 @@ Each trap must contain the following details in the JSON format. Most of the ele
 
 ### Defining pattern inside an attribute:
 
-You might've observed, `$` and `^` inside the trap, that's because h0neytr4p uses golang's regex for parsing your trap. 
+Most request matchers use glob-style `*` wildcards.
 
 ###### Quick Walkthrough:
 
-`.*` - wildcard 
-`^` - starting of the string
-`$` - ending of the string
+`*` - wildcard
 
 Basically, 
 - Let's say you want to match `/jenkins` in the Url field, you will use `/jenkins`. You can use `*` for defining a wildcard entry.
 - Let's say you want to match `/wp-admin/login` in the Url field, you will use `/wp-admin/login`. 
-- Let's say you want to match `/login.php?id=1'` and `/login.php?id=<ANY_Number>'`, you can use `^/login.php?id=*'` as the pattern.
+- Let's say you want to match `/login.php?id=1'` and `/login.php?id=<ANY_Number>'`, use `"Url":"/login.php"` and `"Params":{"id":"*'"}`.
 
 The same goes for headers and params.
 
@@ -84,6 +82,7 @@ Use `"Proto":"HTTP/2*"` when a trap should only match HTTP/2 requests. Leave `Pr
 More examples: 
 
 - You want to create a header list which accepts anything that starts with mozilla.: `"Headers": {"User-Agent":"Mozilla*"}` will be your header value.
+- You want to match decoded HTTP Basic authentication content without logging decoded credentials: `"Headers": {"Authorization-Basic-Decoded":"*known-marker*"}`. This is a virtual matcher, not a real request header.
 - You want to create a parameter set which accepts username: anything starting with admin and password: password only.: `"Params":{"username":"*admin*","password":"password"}`
 
 

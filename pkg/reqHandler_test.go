@@ -2,6 +2,7 @@ package h0neytr4p
 
 import (
 	"bytes"
+	"encoding/base64"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -208,6 +209,54 @@ func TestAllHandlerRejectsMismatchedRequestProto(t *testing.T) {
 	logContent := readTestLog(t, logPath)
 	if !strings.Contains(logContent, `"trapped":"false"`) {
 		t.Fatalf("log does not mark HTTP/1.1 request as untrapped: %s", logContent)
+	}
+}
+
+func TestAllHandlerMatchesDecodedBasicAuthorizationHeader(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	trap := Trap{
+		Basicinfo: BasicInfo{Name: "decoded-basic", Port: "2087"},
+		Behaviour: []Behaviour{
+			{
+				Request: Request{
+					URL:    "/login/",
+					Method: http.MethodPost,
+					Headers: map[string]interface{}{
+						"Authorization-Basic-Decoded": "*successful_internal_auth_with_timestamp*",
+						"Cookie":                       "*whostmgrsession=*",
+					},
+					Params: map[string]interface{}{"login_only": "1"},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "decoded basic matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+		},
+	}
+
+	decoded := "root:x\nsuccessful_internal_auth_with_timestamp=9999999999\nhasroot=1"
+	req := httptest.NewRequest(http.MethodPost, "/login/?login_only=1", nil)
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(decoded)))
+	req.Header.Set("Cookie", "whostmgrsession=example")
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{trap}, false).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body != "decoded basic matched" {
+		t.Fatalf("response body = %q, want %q", body, "decoded basic matched")
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"true"`) {
+		t.Fatalf("log does not mark decoded Basic request as trapped: %s", logContent)
+	}
+	if strings.Contains(logContent, "successful_internal_auth_with_timestamp") {
+		t.Fatalf("log leaks decoded Basic Authorization content: %s", logContent)
 	}
 }
 
