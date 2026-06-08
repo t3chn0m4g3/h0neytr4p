@@ -9,7 +9,7 @@ This fork is adjusted for [T-Pot](https://github.com/telekom-security/tpotce) st
 - Docker and Docker Compose support.
 - JSON logging to a single logfile.
 - Enriched request metadata such as headers, cookies, source IP, destination port, user agent details, and trap metadata.
-- Multi-port trap handling.
+- HTTP and HTTPS trap handling on container ports `80` and `443`.
 - Payload capture for JSON, form, text, and multipart requests.
 - T-Pot-compatible runtime permissions for log and payload artifacts.
 
@@ -75,9 +75,12 @@ The default `docker-compose.yml` exposes:
 |---|---:|---|
 | `80` | `80` | HTTP |
 | `443` | `443` | HTTPS |
+| `2087` | `443` | WHM-style HTTPS alias for cPanel/WHM probes |
 | `8080` | `80` | Alternative HTTP |
 | `8443` | `443` | Alternative HTTPS |
 | `10443` | `443` | Alternative HTTPS |
+
+The container itself only runs HTTP on `80` and HTTPS on `443`. Additional host ports such as `2087`, `8443`, and `10443` are host-side aliases that forward to the HTTPS listener.
 
 The default container command is:
 
@@ -131,6 +134,8 @@ The filename is the MD5 hash of the captured file content. Runtime directories a
 | `-verbose` | `true` | `true` | Print log summaries to stdout |
 
 With `-wildcard=true`, every trap is loaded on both port `80` and port `443`, regardless of the port defined in the trap file. With `-wildcard=false`, traps are loaded only on their configured `BasicInfo.Port`.
+
+The Docker image uses `-wildcard=true` by default, so all bundled traps are available through the container's `80` and `443` listeners. Host-side aliases in `docker-compose.yml`, such as `2087:443`, do not create additional listeners inside h0neytr4p.
 
 With `-catchall=false`, payloads are captured only if the request path matches at least one configured trap path. With `-catchall=true`, payloads are captured even for unmatched paths.
 
@@ -249,6 +254,8 @@ The handler tests cover:
 
 - `text/plain` payload capture and matching against trap parameters.
 - JSON payload capture and matching against top-level JSON fields.
+- HTTP protocol matching via `Request.Proto`, including HTTP/2-specific traps.
+- Decoded HTTP Basic auth matching through `Authorization-Basic-Decoded` without logging the decoded value.
 - Multipart upload capture, MD5-based payload file naming, payload parameter logging, and T-Pot-compatible payload file permissions.
 
 The parser test verifies that invalid trap JSON returns an error instead of terminating the process.
@@ -317,7 +324,7 @@ Authorization: Basic <synthetic-base64-marker>
 Cookie: whostmgrsession=<run-id>
 ```
 
-With the default `docker-compose.yml` port mapping, run it against the WHM-style host port that forwards to the container's HTTPS listener:
+With the default `docker-compose.yml` port mapping, run it against the WHM-style host port `2087`, which forwards to the container's HTTPS listener on `443`:
 
 ```bash
 tests/test-cve-2026-41940-basic-decoded.sh
@@ -363,7 +370,7 @@ ports:
 Then test with:
 
 ```bash
-BASE_URL=https://127.0.0.1:8080 tests/test-cve-2019-19781-payload.sh
+BASE_URL=http://127.0.0.1:8080 tests/test-cve-2019-19781-payload.sh
 ```
 
 ### Payload file not visible on the host
