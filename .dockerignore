@@ -1,0 +1,16 @@
+.git/
+.agents/
+.codex/
+
+log/
+payloads/
+
+.DS_Store
+*.log
+*.tmp
+tmp/
+dist/
+build/
+
+Dockerfile
+docker-compose.yml
