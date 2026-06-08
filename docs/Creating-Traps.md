@@ -10,22 +10,23 @@ Each trap must contain the following details in the JSON format. Most of the ele
 | 1.  |  BasicInfo | This is a nested json containing the basic information of the trap  | Required  |  JSON object |
 | 2.  |  BasicInfo.Name | This is present inside basic info wrapper. This contains the name of the trap. Has to be unique across all the traps for better detection  |  Required | String  |
 | 3.  | BasicInfo.Port  | The port where the trap listener should be started.  | Required   | String  |
-| 4.  | BasicInfo.Protocol  |  The Protocol for the trap. Currently supported: HTTP  |  Required |  String |
-| 4.  | BasicInfo.MitreAttackTags  |  For now, this will have external facing web compromise technique ID. However, it's reserved for future traps which will support more protocols |  Required | Strings seperated with a comma  |
-| 5.  | BasicInfo.References  | Any reference URL for the attack for better detection and analytics.  | Required  | String  |
-| 6.  |  BasicInfo.Description | Description of the attack which is being trapped.  | Required  | String  |
-| 7.  |  BasicInfo.RiskRating | RiskRating for the trap; No defined values yet but generally accepted: Critical, High, Medium, Low, Info  | Required  | String  |
-| 8.  |  Behaviour | It's a json object containing a pair of request and response.  | Required  | JSON array  |
-| 9.  | Behaviour.Request  |  It's a json object containing the required request behaviour | Required  | JSON Object  |
-| 10..  |  Beahviour.Request.Url |  URL Path.  You can define static or wildcards. [See reference below for how-to] | Required  | String  |
-| 11.  |  Behaviour.Request.Method | Method; Supported Values: GET, POST, DELETE, PUT  |  Required |  String |
-| 12.  | Behaviour.Request.Headers  | Request Headers. You can define static or wildcards. [See reference below for how-to]; Use an empty `{}` for empty headers | Required  |  JSON Object |
-| 13.  |  Beahviour.Request.Params |  It's a key value pair json object. You can define the parameters irrespective of GET/POST and Content-Types. Backend handles it automatically. Use an empty `{}` for empty parameters. | Required  | JSON Object  |
-| 14.  |  Beahviour.Response |  It's a json object containing the required response behaviour | Required  | JSON Object  |
-| 15.  |  Beahviour.Request.StatusCode | Status code for response;  |  Required | String  |
-| 16.  |  Beahviour.Request.Body | File content or location of the file;   |   |   |
-| 17.  |  Beahviour.Request.Type | file or string  | Required | String  |
-| 18.  |  Beahviour.trap | "true" if you want to trap, "false" if you don't want to   | Required  | String  |
+| 4.  | BasicInfo.Protocol  |  The protocol family for the trap, for example `HTTP` or `HTTP/2`.  |  Required |  String |
+| 5.  | BasicInfo.MitreAttackTags  |  For now, this will have external facing web compromise technique ID. However, it's reserved for future traps which will support more protocols |  Required | Strings separated with a comma  |
+| 6.  | BasicInfo.References  | Any reference URL for the attack for better detection and analytics.  | Required  | String  |
+| 7.  |  BasicInfo.Description | Description of the attack which is being trapped.  | Required  | String  |
+| 8.  |  BasicInfo.RiskRating | RiskRating for the trap; No defined values yet but generally accepted: Critical, High, Medium, Low, Info  | Required  | String  |
+| 9.  |  Behaviour | It's a json object containing a pair of request and response.  | Required  | JSON array  |
+| 10.  | Behaviour.Request  |  It's a json object containing the required request behaviour | Required  | JSON Object  |
+| 11.  |  Behaviour.Request.Url |  URL Path.  You can define static or wildcards. [See reference below for how-to] | Required  | String  |
+| 12.  |  Behaviour.Request.Method | Method; Supported Values: GET, POST, DELETE, PUT, OPTIONS  |  Required |  String |
+| 13.  | Behaviour.Request.Proto | Optional HTTP request protocol matcher, for example `HTTP/2*`. Omit it or use an empty string to match any HTTP version. | Optional | String |
+| 14.  | Behaviour.Request.Headers  | Request Headers. You can define static or wildcard values. [See reference below for how-to]; Use an empty `{}` for empty headers | Required  |  JSON Object |
+| 15.  |  Behaviour.Request.Params |  It's a key value pair json object. You can define the parameters irrespective of GET/POST and Content-Types. Backend handles it automatically. Use an empty `{}` for empty parameters. | Required  | JSON Object  |
+| 16.  |  Behaviour.Response |  It's a json object containing the required response behaviour | Required  | JSON Object  |
+| 17.  |  Behaviour.Response.StatusCode | Status code for response;  |  Required | String  |
+| 18.  |  Behaviour.Response.Body | File content or location of the file;   |   |   |
+| 19.  |  Behaviour.Response.Type | file or string  | Required | String  |
+| 20.  |  Behaviour.trap | "true" if you want to trap, "false" if you don't want to   | Required  | String  |
 
 
 #### Example Trap:
@@ -46,6 +47,7 @@ Each trap must contain the following details in the JSON format. Most of the ele
             "Request": {
                 "Url":"/jenkins*",
                 "Method": "GET",
+                "Proto":"",
                 "Headers":{"User-Agent":"*"},
                 "Params":{}
             },
@@ -62,24 +64,25 @@ Each trap must contain the following details in the JSON format. Most of the ele
 
 ### Defining pattern inside an attribute:
 
-You might've observed, `$` and `^` inside the trap, that's because h0neytr4p uses golang's regex for parsing your trap. 
+Most request matchers use glob-style `*` wildcards.
 
 ###### Quick Walkthrough:
 
-`.*` - wildcard 
-`^` - starting of the string
-`$` - ending of the string
+`*` - wildcard
 
 Basically, 
 - Let's say you want to match `/jenkins` in the Url field, you will use `/jenkins`. You can use `*` for defining a wildcard entry.
 - Let's say you want to match `/wp-admin/login` in the Url field, you will use `/wp-admin/login`. 
-- Let's say you want to match `/login.php?id=1'` and `/login.php?id=<ANY_Number>'`, you can use `^/login.php?id=*'` as the pattern.
+- Let's say you want to match `/login.php?id=1'` and `/login.php?id=<ANY_Number>'`, use `"Url":"/login.php"` and `"Params":{"id":"*'"}`.
 
 The same goes for headers and params.
+
+Use `"Proto":"HTTP/2*"` when a trap should only match HTTP/2 requests. Leave `Proto` empty or omit it when the HTTP version does not matter.
 
 More examples: 
 
 - You want to create a header list which accepts anything that starts with mozilla.: `"Headers": {"User-Agent":"Mozilla*"}` will be your header value.
+- You want to match decoded HTTP Basic authentication content without logging decoded credentials: `"Headers": {"Authorization-Basic-Decoded":"*known-marker*"}`. This is a virtual matcher, not a real request header.
 - You want to create a parameter set which accepts username: anything starting with admin and password: password only.: `"Params":{"username":"*admin*","password":"password"}`
 
 

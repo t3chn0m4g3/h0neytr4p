@@ -1,13 +1,14 @@
-module main.go
+module github.com/t3chn0m4g3/h0neytr4p
 
-replace github.com/t3chn0m4g3/h0neytr4p => ./pkg/
-
-go 1.23
+go 1.26
 
 require (
-	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/ua-parser/uap-go v0.0.0-20241012191800-bbb40edc15aa // indirect
-	gopkg.in/yaml.v2 v2.2.8 // indirect
+	github.com/gorilla/mux v1.8.1
+	github.com/ryanuber/go-glob v1.0.0
+	github.com/ua-parser/uap-go v0.0.0-20260529044130-17c35e68e58c
+)
+
+require (
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
