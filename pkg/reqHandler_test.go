@@ -43,6 +43,25 @@ func readTestLog(t *testing.T, logPath string) string {
 	return string(content)
 }
 
+func TestGetIPUsesFirstForwardedForAddress(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "192.168.50.20:54321"
+	req.Header.Set("X-Forwarded-For", "10.0.0.5, 10.1.0.15, 10.2.0.14")
+
+	if got, want := GetIP(req), "10.0.0.5"; got != want {
+		t.Fatalf("GetIP() = %q, want %q", got, want)
+	}
+}
+
+func TestGetIPFallsBackToRemoteAddr(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "192.168.50.20:54321"
+
+	if got, want := GetIP(req), "192.168.50.20"; got != want {
+		t.Fatalf("GetIP() = %q, want %q", got, want)
+	}
+}
+
 func TestAllHandlerMatchesTextPlainParamsAfterPayloadCapture(t *testing.T) {
 	logPath, _ := configureTestIO(t)
 	trap := Trap{
