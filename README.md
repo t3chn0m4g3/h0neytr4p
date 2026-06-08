@@ -199,6 +199,7 @@ Minimal trap example:
       "Request": {
         "Url": "/jenkins*",
         "Method": "GET",
+        "Proto": "",
         "Headers": {},
         "Params": {}
       },
@@ -216,7 +217,8 @@ Minimal trap example:
 
 Notes:
 
-- `Request.Url`, `Request.Headers`, and `Request.Params` support glob-style `*` matching.
+- `Request.Url`, `Request.Proto`, `Request.Headers`, and `Request.Params` support glob-style `*` matching.
+- `Request.Proto` is optional. Leave it empty or omit it to match any HTTP version, or use values such as `HTTP/2*` for HTTP/2-specific traps.
 - Use `{}` for empty headers or parameters.
 - `Response.Type` can be `file` or `string`.
 - For `file` responses, `Response.Body` is a path relative to the working directory.
@@ -283,6 +285,27 @@ tests/test-cve-2019-19781-payload.sh
 
 If the host-side `log/` or `payloads/` paths are not readable because of ownership or group permissions, the script falls back to `docker cp` from `CONTAINER_NAME`.
 
+### HTTP/2 Smoke Test
+
+`tests/test-cve-2026-23918-http2.sh` sends an HTTP/2 request to the Apache `CVE-2026-23918` trap:
+
+```text
+GET /?h0neytr4p_test=<run-id> HTTP/2
+```
+
+Run it against a TLS-enabled h0neytr4p instance:
+
+```bash
+tests/test-cve-2026-23918-http2.sh
+```
+
+The script requires a `curl` build with HTTP/2 support. It verifies that:
+
+- The trap responds with HTTP `200`.
+- The negotiated protocol is HTTP/2.
+- The response body matches the Apache-style default page.
+- The JSON log contains a matching `trapped=true` entry for `CVE-2026-23918` with `request_proto` starting with `HTTP/2`.
+
 ## Development Checks
 
 Recommended checks before committing:
@@ -343,4 +366,3 @@ Original h0neytr4p:
 
 - Author: @pbssubhash; [Twitter](https://twitter.com/pbssubhash) | [LinkedIn](https://in.linkedin.com/in/pbssubhash)
 - Rule contributor: @me-godsky; [Twitter](https://twitter.com/me_godsky) | [LinkedIn](https://in.linkedin.com/in/aakashmadaan13)
-

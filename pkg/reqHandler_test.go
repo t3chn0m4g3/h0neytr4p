@@ -128,6 +128,89 @@ func TestAllHandlerMatchesJSONParamsAfterPayloadCapture(t *testing.T) {
 	}
 }
 
+func TestAllHandlerMatchesRequestProto(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	trap := Trap{
+		Basicinfo: BasicInfo{Name: "http2-proto", Port: "443"},
+		Behaviour: []Behaviour{
+			{
+				Request: Request{
+					URL:     "/http2",
+					Method:  http.MethodGet,
+					Proto:   "HTTP/2*",
+					Headers: map[string]interface{}{},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "http2 matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/http2", nil)
+	req.Proto = "HTTP/2.0"
+	req.ProtoMajor = 2
+	req.ProtoMinor = 0
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{trap}, false).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body != "http2 matched" {
+		t.Fatalf("response body = %q, want %q", body, "http2 matched")
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"true"`) {
+		t.Fatalf("log does not mark HTTP/2 request as trapped: %s", logContent)
+	}
+	if !strings.Contains(logContent, `"request_proto":"HTTP/2.0"`) {
+		t.Fatalf("log does not include request protocol: %s", logContent)
+	}
+}
+
+func TestAllHandlerRejectsMismatchedRequestProto(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	trap := Trap{
+		Basicinfo: BasicInfo{Name: "http2-proto", Port: "443"},
+		Behaviour: []Behaviour{
+			{
+				Request: Request{
+					URL:     "/http2",
+					Method:  http.MethodGet,
+					Proto:   "HTTP/2*",
+					Headers: map[string]interface{}{},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "http2 matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/http2", nil)
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{trap}, false).ServeHTTP(rec, req)
+
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("response body = %q, want empty body for mismatched proto", body)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark HTTP/1.1 request as untrapped: %s", logContent)
+	}
+}
+
 func TestAllHandlerCapturesMultipartPayloadFile(t *testing.T) {
 	logPath, payloadDir := configureTestIO(t)
 	trap := Trap{

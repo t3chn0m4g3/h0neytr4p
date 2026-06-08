@@ -29,6 +29,7 @@ type Behaviour struct {
 type Request struct {
 	URL            string                 `json:"Url"`
 	Method         string                 `json:"Method"`
+	Proto          string                 `json:"Proto,omitempty"`
 	Headers        map[string]interface{} `json:"Headers"`
 	Params         map[string]interface{} `json:"Params"`
 	HeaderContains map[string][]string    `json:"HeaderContains"`

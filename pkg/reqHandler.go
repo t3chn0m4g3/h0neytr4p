@@ -80,6 +80,13 @@ func CheckParams(ruleParams map[string]string, requestParams map[string]string) 
 	return true
 }
 
+func CheckProto(ruleProto string, requestProto string) bool {
+	if ruleProto == "" {
+		return true
+	}
+	return match(ruleProto, requestProto)
+}
+
 func GetFlatHeaders(r *http.Request) map[string]string {
 	flatHeaders := make(map[string]string)
 	for key, values := range r.Header {
@@ -400,6 +407,7 @@ func buildLogDetails(r *http.Request, ua *uaparser.Client, payload requestPayloa
 		"dest_port":          GetPort(r),
 		"request_method":     r.Method,
 		"protocol":           GetProtocol(r),
+		"request_proto":      r.Proto,
 		"hostname":           GetHostname(r),
 		"request_uri":        r.RequestURI,
 		"user-agent_browser": ua.UserAgent.Family,
@@ -498,10 +506,11 @@ func allHandler(trapConfig []Trap, catchall bool) http.Handler {
 					continue
 				}
 
+				protoMatch := CheckProto(behaviour.Request.Proto, r.Proto)
 				headerMatch := CheckHeaders(convertMap(behaviour.Request.Headers), r.Header)
 				paramMatch := CheckParams(convertMap(behaviour.Request.Params), payload.params)
 				containsMatch := headerContainsMatch(behaviour.Request.HeaderContains, r.Header)
-				if !(headerMatch && paramMatch) && !containsMatch {
+				if !protoMatch || (!(headerMatch && paramMatch) && !containsMatch) {
 					continue
 				}
 
