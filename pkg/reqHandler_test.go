@@ -242,7 +242,7 @@ func TestAllHandlerMatchesDecodedBasicAuthorizationHeader(t *testing.T) {
 					Method: http.MethodPost,
 					Headers: map[string]interface{}{
 						"Authorization-Basic-Decoded": "*successful_internal_auth_with_timestamp*",
-						"Cookie":                       "*whostmgrsession=*",
+						"Cookie":                      "*whostmgrsession=*",
 					},
 					Params: map[string]interface{}{"login_only": "1"},
 				},
@@ -276,6 +276,115 @@ func TestAllHandlerMatchesDecodedBasicAuthorizationHeader(t *testing.T) {
 	}
 	if strings.Contains(logContent, "successful_internal_auth_with_timestamp") {
 		t.Fatalf("log leaks decoded Basic Authorization content: %s", logContent)
+	}
+}
+
+func cve27654Trap() Trap {
+	return Trap{
+		Basicinfo: BasicInfo{
+			Name:       "CVE-2026-27654",
+			Port:       "443",
+			RiskRating: "8.8",
+		},
+		Behaviour: []Behaviour{
+			{
+				Request: Request{
+					URL:     "/*",
+					Method:  "COPY",
+					Headers: map[string]interface{}{"Destination": "*://*"},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusCreated,
+					Body:       "",
+					Headers:    map[string]interface{}{"Server": "nginx/1.28.2"},
+					Type:       "string",
+				},
+			},
+			{
+				Request: Request{
+					URL:     "/*",
+					Method:  "MOVE",
+					Headers: map[string]interface{}{"Destination": "*://*"},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusCreated,
+					Body:       "",
+					Headers:    map[string]interface{}{"Server": "nginx/1.28.2"},
+					Type:       "string",
+				},
+			},
+		},
+	}
+}
+
+func TestAllHandlerMatchesCVE27654WebDAVMethods(t *testing.T) {
+	for _, method := range []string{"COPY", "MOVE"} {
+		t.Run(method, func(t *testing.T) {
+			logPath, _ := configureTestIO(t)
+			req := httptest.NewRequest(method, "/anything", nil)
+			req.Header.Set("Destination", "https://example.test/dav/target")
+			rec := httptest.NewRecorder()
+
+			allHandler([]Trap{cve27654Trap()}, false).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("response status = %d, want %d", rec.Code, http.StatusCreated)
+			}
+			if server := rec.Header().Get("Server"); server != "nginx/1.28.2" {
+				t.Fatalf("Server header = %q, want %q", server, "nginx/1.28.2")
+			}
+			logContent := readTestLog(t, logPath)
+			if !strings.Contains(logContent, `"trapped":"true"`) {
+				t.Fatalf("log does not mark WebDAV request as trapped: %s", logContent)
+			}
+			if !strings.Contains(logContent, `"trapped_for":"CVE-2026-27654"`) {
+				t.Fatalf("log does not include CVE-2026-27654: %s", logContent)
+			}
+		})
+	}
+}
+
+func TestAllHandlerRejectsCVE27654WithoutDestination(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest("COPY", "/anything", nil)
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{cve27654Trap()}, false).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want default %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("response body = %q, want empty body for missing Destination", body)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark missing Destination request as untrapped: %s", logContent)
+	}
+	if strings.Contains(logContent, `"trapped_for":"CVE-2026-27654"`) {
+		t.Fatalf("log includes CVE-2026-27654 for missing Destination: %s", logContent)
+	}
+}
+
+func TestAllHandlerDoesNotCapturePayloadForDifferentMethodOnWildcardTrap(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodPost, "/random", strings.NewReader("token=secret"))
+	req.Header.Set("Content-Type", "text/plain")
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{cve27654Trap()}, false).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want default %d", rec.Code, http.StatusOK)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark unmatched POST as untrapped: %s", logContent)
+	}
+	if strings.Contains(logContent, `"payload":"token=secret"`) {
+		t.Fatalf("log includes payload captured through different-method wildcard trap: %s", logContent)
 	}
 }
 

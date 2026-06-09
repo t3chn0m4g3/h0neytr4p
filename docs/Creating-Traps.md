@@ -18,7 +18,7 @@ Each trap must contain the following details in the JSON format. Most of the ele
 | 9.  |  Behaviour | It's a json object containing a pair of request and response.  | Required  | JSON array  |
 | 10.  | Behaviour.Request  |  It's a json object containing the required request behaviour | Required  | JSON Object  |
 | 11.  |  Behaviour.Request.Url |  URL Path.  You can define static or wildcards. [See reference below for how-to] | Required  | String  |
-| 12.  |  Behaviour.Request.Method | Method; Supported Values: GET, POST, DELETE, PUT, OPTIONS  |  Required |  String |
+| 12.  |  Behaviour.Request.Method | HTTP method matched exactly against the request, for example GET, POST, DELETE, PUT, OPTIONS, COPY, or MOVE  |  Required |  String |
 | 13.  | Behaviour.Request.Proto | Optional HTTP request protocol matcher, for example `HTTP/2*`. Omit it or use an empty string to match any HTTP version. | Optional | String |
 | 14.  | Behaviour.Request.Headers  | Request Headers. You can define static or wildcard values. [See reference below for how-to]; Use an empty `{}` for empty headers | Required  |  JSON Object |
 | 15.  |  Behaviour.Request.Params |  It's a key value pair json object. You can define the parameters irrespective of GET/POST and Content-Types. Backend handles it automatically. Use an empty `{}` for empty parameters. | Required  | JSON Object  |
@@ -78,6 +78,7 @@ Basically,
 The same goes for headers and params.
 
 Use `"Proto":"HTTP/2*"` when a trap should only match HTTP/2 requests. Leave `Proto` empty or omit it when the HTTP version does not matter.
+Use WebDAV methods such as `"Method":"COPY"` or `"Method":"MOVE"` when a trap should match those requests; h0neytr4p compares the configured method exactly with the incoming HTTP method.
 
 More examples: 
 

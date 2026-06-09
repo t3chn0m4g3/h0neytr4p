@@ -397,10 +397,10 @@ func captureRequestPayload(w http.ResponseWriter, r *http.Request, payload reque
 	return payload, nil
 }
 
-func hasMatchingPath(trapConfig []Trap, path string) bool {
+func hasMatchingRequest(trapConfig []Trap, method string, path string) bool {
 	for _, trap := range trapConfig {
 		for _, behaviour := range trap.Behaviour {
-			if match(behaviour.Request.URL, path) {
+			if behaviour.Request.Method == method && match(behaviour.Request.URL, path) {
 				return true
 			}
 		}
@@ -505,9 +505,9 @@ func allHandler(trapConfig []Trap, catchall bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := uaParser.Parse(r.Header.Get("User-Agent"))
 		payload := newRequestPayload(r)
-		isMatchedPath := hasMatchingPath(trapConfig, r.URL.Path)
+		isMatchedRequest := hasMatchingRequest(trapConfig, r.Method, r.URL.Path)
 
-		if isMatchedPath || catchall {
+		if isMatchedRequest || catchall {
 			capturedPayload, err := captureRequestPayload(w, r, payload)
 			payload = capturedPayload
 			if err != nil {

@@ -129,7 +129,7 @@ The filename is the MD5 hash of the captured file content. Runtime directories a
 | `-payload` | `Default` | `/opt/h0neytr4p/payloads/` | Directory for captured files |
 | `-cert` | `Default` | `app.crt` | TLS certificate file |
 | `-key` | `Default` | `app.key` | TLS key file |
-| `-catchall` | `true` | `false` | Capture payloads for all requests, not only known trap paths |
+| `-catchall` | `true` | `false` | Capture payloads for all requests, not only known trap method/path combinations |
 | `-wildcard` | `false` | `true` | Load all traps on ports `80` and `443` |
 | `-verbose` | `true` | `true` | Print log summaries to stdout |
 
@@ -137,7 +137,7 @@ With `-wildcard=true`, every trap is loaded on both port `80` and port `443`, re
 
 The Docker image uses `-wildcard=true` by default, so all bundled traps are available through the container's `80` and `443` listeners. Host-side aliases in `docker-compose.yml`, such as `2087:443`, do not create additional listeners inside h0neytr4p.
 
-With `-catchall=false`, payloads are captured only if the request path matches at least one configured trap path. With `-catchall=true`, payloads are captured even for unmatched paths.
+With `-catchall=false`, payloads are captured only if the request method and path match at least one configured trap. With `-catchall=true`, payloads are captured even for unmatched requests.
 
 ## Logs
 
@@ -256,6 +256,8 @@ The handler tests cover:
 - JSON payload capture and matching against top-level JSON fields.
 - HTTP protocol matching via `Request.Proto`, including HTTP/2-specific traps.
 - Decoded HTTP Basic auth matching through `Authorization-Basic-Decoded` without logging the decoded value.
+- WebDAV `COPY`/`MOVE` trap matching for `CVE-2026-27654`, including rejection when the required `Destination` header is missing.
+- Method-aware payload preselection, so wildcard traps such as `COPY /*` do not capture payloads from unrelated methods.
 - Multipart upload capture, MD5-based payload file naming, payload parameter logging, and T-Pot-compatible payload file permissions.
 
 The parser test verifies that invalid trap JSON returns an error instead of terminating the process.
@@ -293,26 +295,29 @@ tests/test-cve-2019-19781-payload.sh
 
 If the host-side `log/` or `payloads/` paths are not readable because of ownership or group permissions, the script falls back to `docker cp` from `CONTAINER_NAME`.
 
-### HTTP/2 Smoke Test
+### WebDAV CVE Smoke Test
 
-`tests/test-cve-2026-23918-http2.sh` sends an HTTP/2 request to the Apache `CVE-2026-23918` trap:
+`tests/test-cve-2026-27654-webdav.sh` sends WebDAV-style requests to the NGINX `CVE-2026-27654` trap:
 
 ```text
-GET /?h0neytr4p_test=<run-id> HTTP/2
+COPY /dav/<run-id>/source.txt?h0neytr4p_test=<run-id>
+Destination: https://127.0.0.1:8443/dav/<run-id>/target.txt
+
+MOVE /webdav/<run-id>/source.txt?h0neytr4p_test=<run-id>
+Destination: https://127.0.0.1:8443/webdav/<run-id>/target.txt
 ```
 
-Run it against a TLS-enabled h0neytr4p instance:
+With the default `docker-compose.yml` port mapping, run it against a TLS-enabled h0neytr4p instance:
 
 ```bash
-tests/test-cve-2026-23918-http2.sh
+tests/test-cve-2026-27654-webdav.sh
 ```
 
-The script requires a `curl` build with HTTP/2 support. It verifies that:
+The script verifies that:
 
-- The trap responds with HTTP `200`.
-- The negotiated protocol is HTTP/2.
-- The response body matches the Apache-style default page.
-- The JSON log contains a matching `trapped=true` entry for `CVE-2026-23918` with `request_proto` starting with `HTTP/2`.
+- `COPY` with `Destination` responds with HTTP `201` and logs `trapped_for=CVE-2026-27654`.
+- `MOVE` with `Destination` responds with HTTP `201` and logs `trapped_for=CVE-2026-27654`.
+- `COPY` without `Destination` is logged as `trapped=false`.
 
 ### Decoded Basic Auth Smoke Test
 
