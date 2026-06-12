@@ -70,6 +70,15 @@ func getRequestHeader(ruleHeader string, requestHeaders http.Header) string {
 	return requestHeaders.Get(ruleHeader)
 }
 
+func getRequestHeaderValue(ruleHeader string, requestHeaders http.Header) (string, bool) {
+	if strings.EqualFold(ruleHeader, "Authorization-Basic-Decoded") {
+		decoded := decodeBasicAuthorization(requestHeaders.Get("Authorization"))
+		return decoded, decoded != ""
+	}
+	values := requestHeaders.Values(ruleHeader)
+	return requestHeaders.Get(ruleHeader), len(values) > 0
+}
+
 func decodeBasicAuthorization(headerValue string) string {
 	scheme, value, found := strings.Cut(headerValue, " ")
 	if !found || !strings.EqualFold(scheme, "Basic") {
@@ -84,7 +93,11 @@ func decodeBasicAuthorization(headerValue string) string {
 
 func CheckHeaders(ruleHeaders map[string]string, requestHeaders http.Header) bool {
 	for k, v := range ruleHeaders {
-		if !match(v, getRequestHeader(k, requestHeaders)) {
+		requestValue, found := getRequestHeaderValue(k, requestHeaders)
+		if v != "" && !found {
+			return false
+		}
+		if !match(v, requestValue) {
 			return false
 		}
 	}
@@ -93,7 +106,11 @@ func CheckHeaders(ruleHeaders map[string]string, requestHeaders http.Header) boo
 
 func CheckParams(ruleParams map[string]string, requestParams map[string]string) bool {
 	for k, v := range ruleParams {
-		if !match(v, requestParams[k]) {
+		requestValue, found := requestParams[k]
+		if v != "" && !found {
+			return false
+		}
+		if !match(v, requestValue) {
 			return false
 		}
 	}
@@ -552,11 +569,16 @@ func allHandler(trapConfig []Trap, catchall bool) http.Handler {
 	})
 }
 
-func StartHandler(port string, trapConfig []Trap, cert string, key string, catchall bool) error {
+func newTrapRouter(trapConfig []Trap, catchall bool) *mux.Router {
 	r := mux.NewRouter()
-	fmt.Println("[~>] Loaded " + strconv.Itoa(len(trapConfig)) + " trap(s) on Port:" + port + ". Let's get the ball rolling!")
-
+	r.SkipClean(true)
 	r.PathPrefix("/").Handler(allHandler(trapConfig, catchall))
+	return r
+}
+
+func StartHandler(port string, trapConfig []Trap, cert string, key string, catchall bool) error {
+	r := newTrapRouter(trapConfig, catchall)
+	fmt.Println("[~>] Loaded " + strconv.Itoa(len(trapConfig)) + " trap(s) on Port:" + port + ". Let's get the ball rolling!")
 
 	server := &http.Server{
 		Addr:              ":" + port,
