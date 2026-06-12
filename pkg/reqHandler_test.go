@@ -279,6 +279,209 @@ func TestAllHandlerMatchesDecodedBasicAuthorizationHeader(t *testing.T) {
 	}
 }
 
+func cve2019Trap() Trap {
+	return Trap{
+		Basicinfo: BasicInfo{
+			Name:       "CVE-2019-19781",
+			Port:       "443",
+			RiskRating: "9.8",
+		},
+		Behaviour: []Behaviour{
+			{
+				Request: Request{
+					URL:     "/vpns/cfg/smb.conf",
+					Method:  http.MethodGet,
+					Headers: map[string]interface{}{},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "smb matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+			{
+				Request: Request{
+					URL:     "/vpn/../vpns/cfg/smb.conf",
+					Method:  http.MethodGet,
+					Headers: map[string]interface{}{},
+					Params:  map[string]interface{}{},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "smb matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+			{
+				Request: Request{
+					URL:    "/vpn/../vpns/portal/scripts/newbm.pl",
+					Method: http.MethodPost,
+					Headers: map[string]interface{}{
+						"NSC_USER":  "*/../*",
+						"NSC_NONCE": "*",
+					},
+					Params: map[string]interface{}{
+						"url":      "*",
+						"title":    "*",
+						"desc":     "*",
+						"UI_inuse": "*",
+					},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "newbm matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+			{
+				Request: Request{
+					URL:    "/vpns/portal/scripts/newbm.pl",
+					Method: http.MethodPost,
+					Headers: map[string]interface{}{
+						"NSC_USER":  "*/../*",
+						"NSC_NONCE": "*",
+					},
+					Params: map[string]interface{}{
+						"url":      "*",
+						"title":    "*",
+						"desc":     "*",
+						"UI_inuse": "*",
+					},
+				},
+				Response: Response{
+					Statuscode: http.StatusOK,
+					Body:       "newbm matched",
+					Headers:    map[string]interface{}{},
+					Type:       "string",
+				},
+			},
+		},
+	}
+}
+
+func cve2019NewbmBody() string {
+	return "url=http%3A%2F%2Fexample.com&title=%5B%25+template.new%28%7B%27BLOCK%27%3D%27print+%60id%60%27%7D%29+%25%5D&desc=test&UI_inuse=RfWeb"
+}
+
+func TestTrapRouterDoesNotRedirectCVE2019TraversalPath(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodGet, "/vpn/../vpns/cfg/smb.conf", nil)
+	rec := httptest.NewRecorder()
+
+	newTrapRouter([]Trap{cve2019Trap()}, false).ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusMovedPermanently {
+		t.Fatalf("response status = %d, want trap handler response without redirect", rec.Code)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body != "smb matched" {
+		t.Fatalf("response body = %q, want %q", body, "smb matched")
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"true"`) {
+		t.Fatalf("log does not mark traversal smb.conf request as trapped: %s", logContent)
+	}
+}
+
+func TestAllHandlerDoesNotMatchCVE2019VPNLoginPath(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodGet, "/vpn/", nil)
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{cve2019Trap()}, false).ServeHTTP(rec, req)
+
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("response body = %q, want empty body for /vpn/ login path", body)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark /vpn/ as untrapped: %s", logContent)
+	}
+	if strings.Contains(logContent, `"trapped_for":"CVE-2019-19781"`) {
+		t.Fatalf("log includes CVE-2019-19781 for /vpn/ login path: %s", logContent)
+	}
+}
+
+func TestAllHandlerRejectsCVE2019NewbmWithoutNSCUserTraversal(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodPost, "/vpns/portal/scripts/newbm.pl", strings.NewReader(cve2019NewbmBody()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("NSC_NONCE", "test1337")
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{cve2019Trap()}, false).ServeHTTP(rec, req)
+
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("response body = %q, want empty body without NSC_USER traversal", body)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark missing NSC_USER traversal request as untrapped: %s", logContent)
+	}
+	if strings.Contains(logContent, `"trapped_for":"CVE-2019-19781"`) {
+		t.Fatalf("log includes CVE-2019-19781 without NSC_USER traversal: %s", logContent)
+	}
+}
+
+func TestAllHandlerRejectsCVE2019NewbmWithoutRequiredParams(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodPost, "/vpns/portal/scripts/newbm.pl", strings.NewReader("url=http%3A%2F%2Fexample.com&title=test&desc=test"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("NSC_USER", "/../../../../../../../../../../netscaler/portal/templates/payload")
+	req.Header.Set("NSC_NONCE", "test1337")
+	rec := httptest.NewRecorder()
+
+	allHandler([]Trap{cve2019Trap()}, false).ServeHTTP(rec, req)
+
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("response body = %q, want empty body without required params", body)
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"false"`) {
+		t.Fatalf("log does not mark missing required params request as untrapped: %s", logContent)
+	}
+	if strings.Contains(logContent, `"trapped_for":"CVE-2019-19781"`) {
+		t.Fatalf("log includes CVE-2019-19781 without required params: %s", logContent)
+	}
+}
+
+func TestAllHandlerMatchesCVE2019NewbmExploitShape(t *testing.T) {
+	logPath, _ := configureTestIO(t)
+	req := httptest.NewRequest(http.MethodPost, "/vpn/../vpns/portal/scripts/newbm.pl", strings.NewReader(cve2019NewbmBody()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("NSC_USER", "/../../../../../../../../../../netscaler/portal/templates/payload")
+	req.Header.Set("NSC_NONCE", "test1337")
+	rec := httptest.NewRecorder()
+
+	newTrapRouter([]Trap{cve2019Trap()}, false).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("response status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body != "newbm matched" {
+		t.Fatalf("response body = %q, want %q", body, "newbm matched")
+	}
+	logContent := readTestLog(t, logPath)
+	if !strings.Contains(logContent, `"trapped":"true"`) {
+		t.Fatalf("log does not mark exploit-shaped newbm.pl request as trapped: %s", logContent)
+	}
+	if !strings.Contains(logContent, `"trapped_for":"CVE-2019-19781"`) {
+		t.Fatalf("log does not include CVE-2019-19781: %s", logContent)
+	}
+	if !strings.Contains(logContent, `"header_nsc_user":"/../../../../../../../../../../netscaler/portal/templates/payload"`) {
+		t.Fatalf("log does not include NSC_USER header: %s", logContent)
+	}
+	if !strings.Contains(logContent, "UI_inuse=RfWeb") {
+		t.Fatalf("log does not include captured form payload: %s", logContent)
+	}
+}
+
 func cve27654Trap() Trap {
 	return Trap{
 		Basicinfo: BasicInfo{
